@@ -2,6 +2,8 @@
 
 Try it out here: [https://ycb.github.io/free-feedback-tool-google-sheets/](https://ycb.github.io/free-feedback-tool-google-sheets/test-full.html)
 
+<img width="1152" height="593" alt="image" src="https://github.com/user-attachments/assets/4980b993-2a63-4b42-ac4d-5dae801b18e7" />
+
 A lightweight, customizable feedback tool for web applications that allows users to submit feedback directly from your website with optional Google Sheets integration.
 
 ## ✨ Features
