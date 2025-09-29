@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Tool - Full Flow Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/react-hotkeys-hook@5.1.0/dist/index.umd.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #f9fafb;
+        }
+        .feedback-pin {
+            position: fixed;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+        .feedback-pin.bug { background-color: #ef4444; }
+        .feedback-pin.suggestion { background-color: #3b82f6; }
+        .feedback-pin.praise { background-color: #10b981; }
+        
+        .feedback-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .feedback-modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .inspect-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(59, 130, 246, 0.1);
+            z-index: 30;
+            pointer-events: none;
+        }
+        
+        .inspect-mode::before {
+            content: "Click on any element to provide feedback";
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b82f6;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+        
+        // Mock the feedback tool components with full functionality
+        function FeedbackSystem() {
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isInspectMode, setIsInspectMode] = useState(false);
+            const [screenshot, setScreenshot] = useState('');
+            const [clickLocation, setClickLocation] = useState(null);
+            const [pinnedElement, setPinnedElement] = useState(null);
+            const [currentCategory, setCurrentCategory] = useState('suggestion');
+            const [submissions, setSubmissions] = useState([]);
+            const [sessionPins, setSessionPins] = useState([]);
+            
+            // Keyboard shortcuts
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+                        e.preventDefault();
+                        startInspectMode();
+                    }
+                    if (e.key === 'Escape') {
+                        if (isModalOpen) {
+                            closeModal();
+                        } else if (isInspectMode) {
+                            stopInspectMode();
+                        }
+                    }
+                };
+                
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, [isModalOpen, isInspectMode]);
+            
+            const startInspectMode = () => {
+                setIsInspectMode(true);
+                console.log('🔍 Inspect mode started - click on any element');
+            };
+            
+            const stopInspectMode = () => {
+                setIsInspectMode(false);
+                setPinnedElement(null);
+                setClickLocation(null);
+            };
+            
+            const captureScreenshot = async () => {
+                try {
+                    const canvas = await html2canvas(document.body, {
+                        useCORS: true,
+                        allowTaint: true,
+                        scale: 0.5,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                    });
+                    return canvas.toDataURL('image/png', 0.8);
+                } catch (error) {
+                    console.error('Screenshot capture failed:', error);
+                    return null;
+                }
+            };
+            
+            const handleElementClick = async (e) => {
+                if (!isInspectMode) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const element = e.target;
+                const rect = element.getBoundingClientRect();
+                const location = {
+                    x: e.clientX,
+                    y: e.clientY
+                };
+                
+                console.log('📍 Element clicked:', element, location);
+                
+                // Capture screenshot
+                const screenshotData = await captureScreenshot();
+                if (screenshotData) {
+                    setScreenshot(screenshotData);
+                }
+                
+                // Set pinned element and location
+                setPinnedElement(element);
+                setClickLocation(location);
+                
+                // Open modal
+                setIsModalOpen(true);
+                setIsInspectMode(false);
+            };
+            
+            const closeModal = () => {
+                setIsModalOpen(false);
+                setScreenshot('');
+                setClickLocation(null);
+                setPinnedElement(null);
+            };
+            
+            const submitFeedback = (feedbackData) => {
+                const submission = {
+                    ...feedbackData,
+                    timestamp: new Date().toISOString(),
+                    pageUrl: window.location.href,
+                    userAgent: navigator.userAgent,
+                    clickLocation: clickLocation
+                };
+                
+                console.log('📤 Submitting feedback:', submission);
+                
+                // Store in localStorage as fallback
+                const existing = JSON.parse(localStorage.getItem('feedback_submissions') || '[]');
+                existing.push(submission);
+                localStorage.setItem('feedback_submissions', JSON.stringify(existing));
+                
+                setSubmissions(existing);
+                
+                // Session pins temporarily disabled
+                // if (clickLocation) {
+                //     const newPin = {
+                //         id: Date.now(),
+                //         x: clickLocation.x,
+                //         y: clickLocation.y,
+                //         category: feedbackData.category,
+                //         timestamp: new Date().toISOString(),
+                //         message: feedbackData.message.substring(0, 50) + (feedbackData.message.length > 50 ? '...' : '')
+                //     };
+                //     setSessionPins(prev => [...prev, newPin]);
+                // }
+                
+                closeModal();
+                
+                alert('✅ Feedback submitted successfully!');
+            };
+            
+            // Load existing submissions
+            useEffect(() => {
+                const existing = JSON.parse(localStorage.getItem('feedback_submissions') || '[]');
+                setSubmissions(existing);
+            }, []);
+            
+            return (
+                <div>
+                    {/* Main content */}
+                    <div className="min-h-screen p-8">
+                        <div className="max-w-4xl mx-auto space-y-6">
+                            <h1 className="text-3xl font-bold text-center mb-8">
+                                Feedback Tool - Full Flow Test
+                            </h1>
+                            
+                            {/* Instructions */}
+                            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+                                <h3 className="text-lg font-semibold text-blue-900 mb-2">How to Test the Full Flow:</h3>
+                                <ol className="text-blue-800 space-y-1 list-decimal list-inside">
+                                    <li>Click the <strong>"Provide Feedback"</strong> button (bottom right) or press <kbd className="bg-blue-200 px-2 py-1 rounded">Ctrl+Shift+F</kbd> to start element inspection</li>
+                                    <li>Click on any element below to pin it and open the feedback modal</li>
+                                    <li>Fill out the feedback form with sentiment, category, and message</li>
+                                    <li>Submit the feedback and see the pin persist on the page (fixed position)</li>
+                                    <li>View all session pins and submissions in the panels below</li>
+                                    <li>Pins stay visible throughout your session for easy reference</li>
+                                </ol>
+                                
+                            </div>
+                            
+                            {/* Test cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div 
+                                    className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={handleElementClick}
+                                >
+                                    <h2 className="text-xl font-semibold mb-4 text-red-600">🐛 Bug Report Card</h2>
+                                    <p className="text-gray-600">
+                                        This card has some issues. Use the "Provide Feedback" button, then click on this card to test bug report feedback submission.
+                                    </p>
+                                </div>
+                                
+                                <div 
+                                    className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={handleElementClick}
+                                >
+                                    <h2 className="text-xl font-semibold mb-4 text-blue-600">💡 Suggestion Card</h2>
+                                    <p className="text-gray-600">
+                                        This card could be improved. Use the "Provide Feedback" button, then click on this card to test suggestion feedback submission.
+                                    </p>
+                                </div>
+                                
+                                <div 
+                                    className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={handleElementClick}
+                                >
+                                    <h2 className="text-xl font-semibold mb-4 text-purple-600">🎉 Praise Card</h2>
+                                    <p className="text-gray-600">
+                                        This card is excellent! Use the "Provide Feedback" button, then click on this card to test praise feedback submission.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            
+                            {/* Admin Panel */}
+                            <div className="bg-gray-50 p-6 rounded-lg border">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">📊 Feedback Submissions ({submissions.length})</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${submissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                        <span className="text-xs text-gray-600">
+                                            {submissions.length > 0 ? 'Stored in localStorage' : 'No data'}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                {submissions.length === 0 ? (
+                                    <p className="text-gray-500">No feedback submitted yet. Try the flow above!</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {submissions.slice(-5).reverse().map((submission, index) => (
+                                            <div key={index} className="bg-white p-4 rounded border">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                        submission.category === 'bug' ? 'bg-red-100 text-red-800' :
+                                                        submission.category === 'suggestion' ? 'bg-blue-100 text-blue-800' :
+                                                        'bg-green-100 text-green-800'
+                                                    }`}>
+                                                        {submission.category}
+                                                    </span>
+                                                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                        submission.sentiment === 'positive' ? 'bg-green-100 text-green-800' :
+                                                        submission.sentiment === 'negative' ? 'bg-red-100 text-red-800' :
+                                                        'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {submission.sentiment}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-700 mb-1">{submission.message}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(submission.timestamp).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        ))}
+                                        {submissions.length > 5 && (
+                                            <p className="text-sm text-gray-500 text-center">
+                                                ... and {submissions.length - 5} more submissions
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                <div className="mt-4 flex gap-2">
+                                    <button 
+                                        onClick={() => {
+                                            localStorage.removeItem('feedback_submissions');
+                                            setSubmissions([]);
+                                        }}
+                                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                                    >
+                                        Clear All Submissions
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const dataStr = JSON.stringify(submissions, null, 2);
+                                            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                                            const url = URL.createObjectURL(dataBlob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = `feedback-${new Date().toISOString().split('T')[0]}.json`;
+                                            link.click();
+                                        }}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                                    >
+                                        Export JSON
+                                    </button>
+                                </div>
+                                
+                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                    <strong>💡 Pro Tip:</strong> Set up Google Apps Script integration to automatically sync feedback to Google Sheets for team analysis and tracking.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Floating Feedback Button */}
+                    <button
+                        onClick={startInspectMode}
+                        className={`fixed bottom-6 right-6 z-50 h-12 px-4 rounded-full shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-2 min-w-[160px] ${
+                            isInspectMode || isModalOpen ? 'scale-95 opacity-50' : ''
+                        }`}
+                    >
+                        <span>💬</span>
+                        <span className="text-sm font-medium">Provide Feedback</span>
+                    </button>
+                    
+                    {/* Inspect Mode Overlay */}
+                    {isInspectMode && (
+                        <div className="inspect-mode" onClick={stopInspectMode}></div>
+                    )}
+                    
+                    
+                    {/* Session Pins - Temporarily disabled */}
+                    {/* {sessionPins.map(pin => (
+                        <div 
+                            key={pin.id}
+                            className={`feedback-pin ${pin.category}`}
+                            style={{
+                                position: 'fixed',
+                                left: pin.x - 12,
+                                top: pin.y - 12,
+                                zIndex: 40,
+                            }}
+                            title={`${pin.category} - ${pin.message}`}
+                        />
+                    ))} */}
+                    
+                    {/* Current Pin (during inspection) */}
+                    {pinnedElement && clickLocation && (
+                        <div 
+                            className={`feedback-pin ${currentCategory} animate-pulse`}
+                            style={{
+                                position: 'fixed',
+                                left: clickLocation.x - 12,
+                                top: clickLocation.y - 12,
+                                zIndex: 40,
+                            }}
+                        />
+                    )}
+                    
+                    {/* Feedback Modal */}
+                    {isModalOpen && (
+                        <FeedbackModal
+                            screenshot={screenshot}
+                            clickLocation={clickLocation}
+                            onSubmit={submitFeedback}
+                            onClose={closeModal}
+                            onCategoryChange={setCurrentCategory}
+                        />
+                    )}
+                </div>
+            );
+        }
+        
+        // Feedback Modal Component
+        function FeedbackModal({ screenshot, clickLocation, onSubmit, onClose, onCategoryChange }) {
+            const [formData, setFormData] = useState({
+                sentiment: 'neutral',
+                category: 'suggestion',
+                message: '',
+                email: ''
+            });
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!formData.message.trim()) return;
+                
+                setIsSubmitting(true);
+                
+                // Simulate submission delay
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                onSubmit(formData);
+                setIsSubmitting(false);
+            };
+            
+            const handleChange = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+                if (field === 'category') {
+                    onCategoryChange(value);
+                }
+            };
+            
+            return (
+                <div className="feedback-modal" onClick={onClose}>
+                    <div className="feedback-modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-semibold">Share Your Feedback</h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                                ✕
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Screenshot Preview */}
+                            {screenshot && (
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <h3 className="text-sm font-medium text-gray-700 mb-2">Page Context</h3>
+                                    <div className="relative">
+                                        <img
+                                            src={screenshot}
+                                            alt="Page screenshot"
+                                            className="w-full h-32 object-cover rounded border"
+                                        />
+                                        {clickLocation && (
+                                            <div
+                                                className="absolute w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg animate-pulse"
+                                                style={{
+                                                    left: `${(clickLocation.x / window.innerWidth) * 100}%`,
+                                                    top: `${(clickLocation.y / window.innerHeight) * 100}%`,
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Screenshot captured automatically when you selected the area to discuss.
+                                    </p>
+                                </div>
+                            )}
+                            
+                            {/* Sentiment Selection */}
+                            <div>
+                                <label className="text-sm font-medium block mb-3">How do you feel about this?</label>
+                                <div className="flex gap-3">
+                                    {[
+                                        { value: 'positive', emoji: '😊', label: 'Positive' },
+                                        { value: 'neutral', emoji: '😐', label: 'Neutral' },
+                                        { value: 'negative', emoji: '😞', label: 'Negative' }
+                                    ].map(option => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => handleChange('sentiment', option.value)}
+                                            className={`flex-1 h-12 flex-col gap-1 rounded border ${
+                                                formData.sentiment === option.value 
+                                                    ? 'bg-blue-500 text-white border-blue-500' 
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <span className="text-lg">{option.emoji}</span>
+                                            <span className="text-xs">{option.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Category Selection */}
+                            <div>
+                                <label className="text-sm font-medium block mb-3">What type of feedback is this?</label>
+                                <select
+                                    value={formData.category}
+                                    onChange={(e) => handleChange('category', e.target.value)}
+                                    className="w-full h-10 px-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="bug">🐛 Bug Report</option>
+                                    <option value="suggestion">💡 Suggestion</option>
+                                    <option value="praise">🎉 Praise</option>
+                                </select>
+                            </div>
+                            
+                            {/* Message Input */}
+                            <div>
+                                <label className="text-sm font-medium block mb-3">Your feedback</label>
+                                <textarea
+                                    value={formData.message}
+                                    onChange={(e) => handleChange('message', e.target.value)}
+                                    placeholder="Tell us what you think, what you'd like to see, or report any issues..."
+                                    className="w-full h-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                    required
+                                />
+                            </div>
+                            
+                            {/* Email Input */}
+                            <div>
+                                <label className="text-sm font-medium block mb-3">Email (optional)</label>
+                                <input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => handleChange('email', e.target.value)}
+                                    placeholder="your@email.com"
+                                    className="w-full h-10 px-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    We'll only use this to follow up on your feedback if needed.
+                                </p>
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    disabled={isSubmitting}
+                                    className="flex-1 h-10 px-4 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting || !formData.message.trim()}
+                                    className="flex-1 h-10 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                                >
+                                    {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        function App() {
+            return React.createElement(FeedbackSystem);
+        }
+        
+        // Render the app
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
+    </script>
+</body>
+</html>
