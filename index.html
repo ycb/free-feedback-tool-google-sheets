@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Feedback Tool - Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+        .features {
+            text-align: left;
+            margin: 30px 0;
+        }
+        .features h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 8px 0;
+            color: #666;
+        }
+        .features li:before {
+            content: "✨ ";
+            margin-right: 8px;
+        }
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background: #e5e7eb;
+            transform: translateY(-2px);
+        }
+        .github-link {
+            margin-top: 30px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .github-link a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .github-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Free Feedback Tool</h1>
+        <p class="subtitle">A lightweight, customizable feedback system for web applications</p>
+        
+        <div class="features">
+            <h3>Key Features:</h3>
+            <ul>
+                <li>Click on any element to provide feedback</li>
+                <li>Automatic screenshot capture</li>
+                <li>Multiple feedback types (bug, suggestion, praise)</li>
+                <li>Sentiment tracking (positive, neutral, negative)</li>
+                <li>Google Sheets integration</li>
+                <li>Local storage fallback</li>
+                <li>Keyboard shortcuts (Ctrl+Shift+F)</li>
+                <li>Responsive design</li>
+            </ul>
+        </div>
+        
+        <div class="buttons">
+            <a href="test-full.html" class="btn btn-primary">🚀 Try Live Demo</a>
+            <a href="https://github.com/ycb/free-feedback-tool-google-sheets" class="btn btn-secondary">📚 View on GitHub</a>
+        </div>
+        
+        <div class="github-link">
+            <p>📦 Install via NPM:</p>
+            <code>npm install @ycb/free-feedback-tool-google-sheets</code>
+        </div>
+    </div>
+</body>
+</html>
